@@ -1,27 +1,163 @@
-import pygame
-import time
+import os
 import random
+import math
+import pygame
+from os import listdir
+from os.path import isfile, join
+pygame.init()
 
-WIDTH, HEIGHT = 1000, 800
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Jump Jump CS")
+pygame.display.set_caption("Super Chomsky")
 
-BG = pygame.transform.scale(pygame.image.load("backgroundsprite.png"), (WIDTH, HEIGHT))
+WIDTH, HEIGHT = 1000, 800 #screen ratio (in pixel)
+FPS = 60 
+PLAYER_VEL = 5
 
-def draw(): #this part is to define the background image
-    WIN.blit(BG, (0,0))
+window = pygame.display.set_mode((WIDTH, HEIGHT))
+
+#flip the image when the character is facing to the opposite direction
+def flip(sprites):
+    return [pygame.transform.flip(sprite, True, False) for sprite in sprites]
+
+#splitting sprite sheet for character animation
+def load_sprite_sheets(dir1, dir2, width, height, direction=False):
+    path = join("assets", dir1, dir2)
+    images = [f for f in listdir(path) if isfile(join(path, f))]
+
+    all_sprites = {}
+
+    for image in images:
+        sprite_sheet = pygame.image.load(join(path, image)).convert_alpha()
+
+        sprites = []
+        for i in range(sprite_sheet.get_width() // width):
+            surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
+            rect = pygame.Rect(i * width, 0, width, height)
+            surface.blit(sprite_sheet, (0, 0), rect)
+            sprites.append(pygame.transform.scale2x(surface))
+
+        if direction:
+            all_sprites[image.replace(".png", "") + "_right"] = sprites
+            all_sprites[image.replace(".png", "") + "_left"] = flip(sprites)
+        else:
+            all_sprites[image.replace(".png", "")] = sprites
+    return all_sprites
+
+
+# generate player
+class Player(pygame.sprite.Sprite):
+    COLOR = (255, 0, 0)
+    GRAVITY = 1
+    SPRITES = load_sprite_sheets("MainCharacters", "MaskDude", 32, 32, True)
+    ANIMATION_DELAY = 5
+
+    #create the object for the player class
+    def __init__(self, x, y, width, height):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.x_vel = 0
+        self.y_vel = 0
+        self.mask = None
+        self.direction = "left"
+        self.animation_count = 0
+        self.fall_count = 0
+
+    #move the character for x or y direction
+    def move(self, dx, dy):
+        self.rect.x += dx
+        self.rect.y += dy
+
+    #move player to the left
+    def move_left(self, vel):
+        self.x_vel = -vel
+        if self.direction != "left":
+            self.direction = "left"
+            self.animation_count = 0
+
+    #move player to the right
+    def move_right(self, vel):
+        self.x_vel = vel
+        if self.direction != "right":
+            self.direction = "right"
+            self.animation_count = 0
+
+    #called once every frame and make sure the character move to the right direction and update the animation
+    def loop(self, fps):
+        #self.y_vel += min(1, (self.fall_count / fps) * self.GRAVITY)
+        self.move(self.x_vel, self.y_vel)
+
+        self.fall_count += 1
+        self.update_sprite()
+
+    #animate the character
+    def update_sprite(self):
+        sprite_sheet = "idle"
+        if self.x_vel != 0:
+            sprite_sheet = "run"
+
+        sprite_sheet_name = sprite_sheet + "_" + self.direction
+        sprites = self.SPRITES[sprite_sheet_name]
+        sprite_index = (self.animation_count // self.ANIMATION_DELAY) % len(sprites)
+        self.sprite = sprites[sprite_index]
+        self.animation_count += 1
+
+    #draw the character to the window
+    def draw(self, win):
+        win.blit(self.sprite, (self.rect.x, self.rect.y))
+
+
+# get the background for the game
+def get_background(name):
+    image = pygame.image.load(join("assets", "Background", name))
+    _, _, width, height = image.get_rect()
+    tiles = []
+    for i in range(WIDTH // width + 1): #i divide it integerly so that i can know how many tiles do i need to make the bg image the +1 is to make sure i don't have any gaps
+        for j in range(HEIGHT // height + 1):
+            pos = (i * width, j * height)
+            tiles.append(pos)
+
+    return tiles, image
+
+# generate the background
+def draw(window, background, bg_image, player):
+    for tile in background:
+        window.blit(bg_image, tile)
+    
+    player.draw(window)
     pygame.display.update()
 
-def main(): #This is for the main display of the game to play
-    run = True
+# make the character move when some key is pressed
+def handle_move(player):
+    keys = pygame.key.get_pressed()
 
+    player.x_vel = 0 #assign to zero to stay still when the keys aren't pressed
+    if keys[pygame.K_a]:
+        player.move_left(PLAYER_VEL)
+    if keys[pygame.K_d]:
+        player.move_right(PLAYER_VEL)
+
+
+# make the window for the game
+def main(window):
+    clock = pygame.time.Clock()
+    background, bg_image = get_background("Blue.png")
+
+    player = Player(100, 100, 50, 50)
+
+
+    run = True
     while run:
+        clock.tick(FPS)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 run = False
                 break
-        draw()    
+        player.loop(FPS)
+        handle_move(player)
+        draw(window, background, bg_image, player)       
+    
     pygame.quit()
+    quit()
+    
 
-if __name__ == "__main__": #this part is for the game to run if we click the specific file
-    main()
+if __name__ == "__main__":
+    main(window)
