@@ -52,12 +52,54 @@ def get_block(size):
     surface.blit(image, (0, 0), rect)
     return pygame.transform.scale2x(surface)
 
+#load the font sprite sheet
+def load_font_sprites():
+    path = join("assets", "Menu", "Text", "Text-white.png")
+    sprite_sheet = pygame.image.load(path).convert_alpha()
+    font_sprites = {}
+    char_width = 8
+    char_height = 10
+
+    for i in range(26):
+        char = chr(ord('A') + i)
+        x = (i % 10) * char_width
+        y = (i // 10) * char_height
+        surface = pygame.Surface((char_width, char_height), pygame.SRCALPHA, 32)
+        rect = pygame.Rect(x, y, char_width, char_height)
+        surface.blit(sprite_sheet, (0, 0), rect)
+        font_sprites[char] = pygame.transform.scale2x(surface)
+        print(f"Loaded character '{char}' at position {x}, {y}")
+
+    #add space character
+    space_surface = pygame.Surface((char_width, char_height), pygame.SRCALPHA, 32)
+    font_sprites[' '] = pygame.transform.scale2x(space_surface)
+    return font_sprites
+
+#render the text
+def render_text(text, font_sprites):
+    surfaces = []
+    for char in text:
+        if char in font_sprites:
+            surfaces.append(font_sprites[char])
+       
+
+    width = sum(surface.get_width() for surface in surfaces)
+    height = max(surface.get_height() for surface in surfaces)
+    text_surface = pygame.Surface((width, height), pygame.SRCALPHA, 32)
+
+    x_offset = 0
+    for surface in surfaces:
+        text_surface.blit(surface, (x_offset, 0))
+        x_offset += surface.get_width()
+
+    return text_surface
+
 # generate playera
 class Player(pygame.sprite.Sprite):
     COLOR = (255, 0, 0)
     GRAVITY = 1
     APPEARING = load_sprite_sheets("MainCharacters", "Appearing", 96, 96, True)
-    SPRITES = load_sprite_sheets("MainCharacters", "MaskDude", 32, 32, True)
+    SPRITES = load_sprite_sheets("MainCharacters", "NinjaFrog", 32, 32, True)
     ANIMATION_DELAY = 3
 
     #create the object for the player class
@@ -291,9 +333,84 @@ def handle_move(player, objects):
 
     handle_vertical_collision(player, objects, player.y_vel)
 
+# make the buttons for main menu
+class Button:
+    def __init__(self, x, y, width, height, text, font_sprites, callback):
+        self.rect = pygame.Rect(x, y, width, height)
+        self.text = text
+        self.font_sprites = font_sprites
+        self.callback = callback
+        self.color = (255, 165, 0)
+        self.hover_color = (139, 69, 19)
+        self.current_color = self.color
+
+    #draw the button
+    def draw(self, window):
+        pygame.draw.rect(window, self.current_color, self.rect)
+        text_surface = render_text(self.text, self.font_sprites)
+        text_rect = text_surface.get_rect(center=self.rect.center)
+        window.blit(text_surface, text_rect)
+
+    #check if the button is clicked
+    def check_click(self, pos):
+        if self.rect.collidepoint(pos):
+            self.callback()
+
+    #check if the button is hovered
+    def check_hover(self, pos):
+        if self.rect.collidepoint(pos):
+            self.current_color = self.hover_color
+        else:
+            self.current_color = self.color
+
+#start a new game
+def new_game():
+    main_game(window)
+
+#load the game
+def load_game():
+    print("Load Game button clicked")
+
+#quit the game
+def quit_game():
+    pygame.quit()
+    quit()
+
+#make the main menu
+def main_menu(window):
+    font_sprites = load_font_sprites()
+    buttons = [
+        Button(WIDTH // 2 - 100, HEIGHT // 2 - 150, 200, 50, "NEW GAME", font_sprites, new_game),
+        Button(WIDTH // 2 - 100, HEIGHT // 2 - 50, 200, 50, "LOAD GAME", font_sprites, load_game),
+        Button(WIDTH // 2 - 100, HEIGHT // 2 + 50, 200, 50, "QUIT GAME", font_sprites, quit_game)
+    ]
+
+    title_image = pygame.image.load(join("assets", "Menu", "Title", "title.png")).convert_alpha()
+    title_rect = title_image.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 250))
+
+    run = True
+    while run:
+        window.fill((0, 0, 0))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                for button in buttons:
+                    button.check_click(event.pos)
+
+        for button in buttons:
+            button.check_hover(pygame.mouse.get_pos())
+            button.draw(window)
+        
+        window.blit(title_image, title_rect)
+        pygame.display.update()
+
+    pygame.quit()
+    quit()
 
 # make the window for the game
-def main(window):
+def main_game(window):
     clock = pygame.time.Clock()
     background, bg_image = get_background("Blue.png")
     
@@ -338,4 +455,4 @@ def main(window):
     
 
 if __name__ == "__main__":
-    main(window)
+    main_menu(window)
